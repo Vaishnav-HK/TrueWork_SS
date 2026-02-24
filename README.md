@@ -2,7 +2,7 @@ yo, so this is how u run dis ting:
 
 1.open VSCode  
 2.open the terminal (ctrl + ` )  
-3.make sure it says "bla:\blabla\blabla\ **TrueWork-main** >" (or something close to this, could also be TrueWork_SS-main) 
+3.make sure it says "bla:\blabla\blabla\ **TrueWork-main** >" (or something close to this, could also be TrueWork_SS-main. Just make sure you're in the same dir as the README file) 
 
 ### 4. Run the front-end 🍆:  
     4.0 click on the '+' sign on the terminal *(you'll see it on the top bar of the terminal)* and type the following  

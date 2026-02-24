@@ -1,7 +1,7 @@
 yo, so this is how u run dis ting:
 
 1.open VSCode  
-2.open the terminal (ctrl + `)  
+2.open the terminal (ctrl + ` )  
 3.make sure it says "bla:\blabla\blabla\ **TrueWork-main** >"  
 
 ### 4. Run the front-end 🍆:  

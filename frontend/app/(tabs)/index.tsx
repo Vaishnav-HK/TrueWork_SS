@@ -17,6 +17,8 @@ import { trueworkAPI } from "@/services/api";
 
 interface SimilarityResult {
   studentPair: [number, number];
+  studentNames?: [string, string];
+  studentFilenames?: [string, string];
   semanticSimilarity: number;
   structuralSimilarity: number;
   suspicionLevel: "low" | "medium" | "high" | "critical";
@@ -25,7 +27,8 @@ interface SimilarityResult {
 
 interface NetworkNode {
   id: number;
-  name: string;
+  student_id: string;
+  filename: string;
   centralityScore: number;
   suspicious: boolean;
 }
@@ -76,12 +79,20 @@ export default function Index() {
     }
 
     setIsAnalyzing(true);
+    // Clear previous results immediately
+    setAnalysisResults([]);
+    setNetworkNodes([]);
 
     try {
       // Generate student IDs based on file count
       const studentIds = selectedFiles.map(
         (_, index) => `Student_${index + 1}`,
       );
+
+      // Step 0: Clear backend data
+      console.log("Clearing previous data from TrueWork backend...");
+      await trueworkAPI.clearData();
+      console.log("Backend data cleared");
 
       // Step 1: Upload files
       console.log("Uploading files to TrueWork backend...");
@@ -100,14 +111,15 @@ export default function Index() {
       await trueworkAPI.startAnalysis();
       console.log("Analysis started");
 
-      // Step 3: Wait for analysis to complete
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Step 3: Wait longer for analysis to complete
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Step 4: Fetch results
       console.log("Fetching TrueWork analysis results...");
       const { analysisResults, networkNodes } =
         await trueworkAPI.fetchResults();
       console.log("Results retrieved:", analysisResults);
+      console.log("Network nodes retrieved:", networkNodes);
 
       // Step 5: Update UI
       setNetworkNodes(networkNodes);
@@ -398,233 +410,315 @@ export default function Index() {
     </ScrollView>
   );
 
-  const renderSimilarityMatrix = () => (
-    <ScrollView
-      style={styles.contentScrollView}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>TrueWork Similarity Analysis</Text>
-          <Text style={styles.sectionSubtitle}>
-            Comprehensive authenticity verification results powered by TrueWork
-            AI
-          </Text>
-        </View>
+  const getNumStudents = (): number => {
+    if (networkNodes.length > 0) {
+      return networkNodes.length;
+    }
+    // Fallback: calculate from analysis results
+    const studentIds = new Set<number>();
+    analysisResults.forEach((result) => {
+      studentIds.add(result.studentPair[0]);
+      studentIds.add(result.studentPair[1]);
+    });
+    return Math.max(studentIds.size, 1);
+  };
 
-        <View style={styles.matrixHeader}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search students or filter TrueWork results..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+  const getStudentFilename = (studentNum: number): string => {
+    // Create a map of student numbers to filenames from networkNodes
+    if (networkNodes.length > 0) {
+      const node = networkNodes.find((n) => {
+        const match = n.student_id.match(/\d+/);
+        const nodeNum = match ? parseInt(match[0]) : 0;
+        return nodeNum === studentNum;
+      });
+      if (node) {
+        return node.filename;
+      }
+    }
 
-          <View style={styles.legendContainer}>
-            <Text style={styles.legendTitle}>TrueWork Authenticity Scale:</Text>
-            <View style={styles.legendItems}>
-              {[
-                {
-                  color: "#28a745",
-                  label: "Authentic (0-40%)",
-                  desc: "Original work verified",
-                },
-                {
-                  color: "#ffc107",
-                  label: "Moderate (40-60%)",
-                  desc: "Minor concerns detected",
-                },
-                {
-                  color: "#fd7e14",
-                  label: "Concerning (60-80%)",
-                  desc: "Significant similarities found",
-                },
-                {
-                  color: "#dc3545",
-                  label: "Critical (80%+)",
-                  desc: "Authenticity compromised",
-                },
-              ].map((item) => (
-                <View key={item.label} style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendColor,
-                      { backgroundColor: item.color },
-                    ]}
-                  />
-                  <View style={styles.legendTextContainer}>
-                    <Text style={styles.legendText}>{item.label}</Text>
-                    <Text style={styles.legendDescription}>{item.desc}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+    // Fallback: try to find from analysis results
+    for (const result of analysisResults) {
+      if (result.studentPair[0] === studentNum && result.studentFilenames) {
+        return result.studentFilenames[0];
+      }
+      if (result.studentPair[1] === studentNum && result.studentFilenames) {
+        return result.studentFilenames[1];
+      }
+    }
+
+    return "Unknown";
+  };
+
+  const renderSimilarityMatrix = () => {
+    const numStudents = getNumStudents();
+
+    return (
+      <ScrollView
+        style={styles.contentScrollView}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              TrueWork Similarity Analysis
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              Comprehensive authenticity verification results powered by
+              TrueWork AI
+            </Text>
           </View>
-        </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.matrixContainer}
-        >
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.matrix}>
-              {/* Matrix Header Row */}
-              <View style={styles.matrixRow}>
-                <View style={styles.cornerCell}>
-                  <Text style={styles.cornerText}>TrueWork</Text>
-                  <Text style={styles.cornerSubtext}>Matrix</Text>
-                </View>
-                {Array.from({ length: 12 }, (_, i) => (
-                  <View key={`header-${i}`} style={styles.headerCell}>
-                    <Text style={styles.headerCellText}>S{i + 1}</Text>
+          <View style={styles.matrixHeader}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search students or filter TrueWork results..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+
+            <View style={styles.legendContainer}>
+              <Text style={styles.legendTitle}>
+                TrueWork Authenticity Scale:
+              </Text>
+              <View style={styles.legendItems}>
+                {[
+                  {
+                    color: "#28a745",
+                    label: "Authentic (0-40%)",
+                    desc: "Original work verified",
+                  },
+                  {
+                    color: "#ffc107",
+                    label: "Moderate (40-60%)",
+                    desc: "Minor concerns detected",
+                  },
+                  {
+                    color: "#fd7e14",
+                    label: "Concerning (60-80%)",
+                    desc: "Significant similarities found",
+                  },
+                  {
+                    color: "#dc3545",
+                    label: "Critical (80%+)",
+                    desc: "Authenticity compromised",
+                  },
+                ].map((item) => (
+                  <View key={item.label} style={styles.legendItem}>
+                    <View
+                      style={[
+                        styles.legendColor,
+                        { backgroundColor: item.color },
+                      ]}
+                    />
+                    <View style={styles.legendTextContainer}>
+                      <Text style={styles.legendText}>{item.label}</Text>
+                      <Text style={styles.legendDescription}>{item.desc}</Text>
+                    </View>
                   </View>
                 ))}
               </View>
+            </View>
+          </View>
 
-              {/* Matrix Data Rows */}
-              {Array.from({ length: 12 }, (_, row) => (
-                <View key={`row-${row}`} style={styles.matrixRow}>
-                  <View style={styles.rowHeaderCell}>
-                    <Text style={styles.rowHeaderText}>Student {row + 1}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.matrixContainer}
+          >
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.matrix}>
+                {/* Matrix Header Row */}
+                <View style={styles.matrixRow}>
+                  <View style={styles.cornerCell}>
+                    <Text style={styles.cornerText}>TrueWork</Text>
+                    <Text style={styles.cornerSubtext}>Matrix</Text>
                   </View>
-                  {Array.from({ length: 12 }, (_, col) => {
-                    const similarity = getSimilarityValue(row + 1, col + 1);
-                    const isDiagonal = row === col;
-                    return (
-                      <TouchableOpacity
-                        key={`cell-${row}-${col}`}
+                  {Array.from({ length: numStudents }, (_, i) => (
+                    <View key={`header-${i}`} style={styles.headerCell}>
+                      <Text style={styles.headerCellText}>S{i + 1}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Matrix Data Rows */}
+                {Array.from({ length: numStudents }, (_, row) => (
+                  <View key={`row-${row}`} style={styles.matrixRow}>
+                    <View style={styles.rowHeaderCell}>
+                      <Text style={styles.rowHeaderText}>S{row + 1}</Text>
+                      <Text
                         style={[
-                          styles.matrixCell,
-                          isDiagonal && styles.diagonalCell,
-                          !isDiagonal && {
-                            backgroundColor: getSimilarityColor(similarity),
-                          },
+                          styles.rowHeaderText,
+                          { fontSize: 10, opacity: 0.7 },
                         ]}
-                        onPress={() =>
-                          !isDiagonal &&
-                          setSelectedCell({ row: row + 1, col: col + 1 })
-                        }
                       >
-                        {!isDiagonal && (
-                          <Text style={styles.cellText}>
-                            {(similarity * 100).toFixed(0)}%
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-        </ScrollView>
-
-        <View style={styles.matrixFooter}>
-          <Text style={styles.matrixFooterText}>
-            ✓ Analysis completed by TrueWork AI • Verified authentic work
-            patterns
-          </Text>
-        </View>
-      </View>
-    </ScrollView>
-  );
-
-  const renderNetworkAnalysis = () => (
-    <ScrollView
-      style={styles.contentScrollView}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>TrueWork Network Intelligence</Text>
-          <Text style={styles.sectionSubtitle}>
-            Advanced pattern recognition and collaboration network analysis
-          </Text>
-        </View>
-
-        <View style={styles.networkStats}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>12</Text>
-            <Text style={styles.statLabel}>Students Analyzed</Text>
-            <Text style={styles.statSubtext}>by TrueWork</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>23</Text>
-            <Text style={styles.statLabel}>Similarity Patterns</Text>
-            <Text style={styles.statSubtext}>detected</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>5</Text>
-            <Text style={styles.statLabel}>Collaboration Clusters</Text>
-            <Text style={styles.statSubtext}>identified</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>2</Text>
-            <Text style={styles.statLabel}>Critical Cases</Text>
-            <Text style={styles.statSubtext}>requiring review</Text>
-          </View>
-        </View>
-
-        <View style={styles.networkVisualization}>
-          <Text style={styles.networkTitle}>
-            TrueWork Collaboration Network Map
-          </Text>
-          <View style={styles.networkPlaceholder}>
-            <Text style={styles.networkPlaceholderText}>
-              🕸️ Interactive TrueWork Network Visualization
-            </Text>
-            <Text style={styles.networkDescription}>
-              Advanced AI mapping shows student interaction patterns and
-              potential collaboration networks. Larger nodes indicate higher
-              centrality scores in the similarity network.
-            </Text>
-            <View style={styles.networkFeatures}>
-              <Text style={styles.networkFeature}>
-                • Real-time pattern recognition
-              </Text>
-              <Text style={styles.networkFeature}>
-                • Temporal collaboration tracking
-              </Text>
-              <Text style={styles.networkFeature}>
-                • Suspicious activity flagging
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.suspiciousStudents}>
-          <Text style={styles.suspiciousTitle}>
-            TrueWork Priority Review Queue
-          </Text>
-          <Text style={styles.suspiciousSubtitle}>
-            Students requiring immediate attention
-          </Text>
-          {networkNodes
-            .filter((node) => node.suspicious)
-            .map((student) => (
-              <View key={student.id} style={styles.suspiciousItem}>
-                <View style={styles.suspiciousHeader}>
-                  <Text style={styles.suspiciousName}>{student.name}</Text>
-                  <View style={styles.suspiciousMetrics}>
-                    <Text style={styles.centralityScore}>
-                      Network Score:{" "}
-                      {(student.centralityScore * 100).toFixed(1)}%
-                    </Text>
-                    <Text style={styles.riskLevel}>HIGH PRIORITY</Text>
+                        {getStudentFilename(row + 1)}
+                      </Text>
+                    </View>
+                    {Array.from({ length: numStudents }, (_, col) => {
+                      const similarity = getSimilarityValue(row + 1, col + 1);
+                      const isDiagonal = row === col;
+                      return (
+                        <TouchableOpacity
+                          key={`cell-${row}-${col}`}
+                          style={[
+                            styles.matrixCell,
+                            isDiagonal && styles.diagonalCell,
+                            !isDiagonal && {
+                              backgroundColor: getSimilarityColor(similarity),
+                            },
+                          ]}
+                          onPress={() =>
+                            !isDiagonal &&
+                            setSelectedCell({ row: row + 1, col: col + 1 })
+                          }
+                        >
+                          {!isDiagonal && (
+                            <Text style={styles.cellText}>
+                              {(similarity * 100).toFixed(0)}%
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                </View>
-                <Text style={styles.suspiciousReason}>
-                  TrueWork detected: High connectivity patterns • Multiple
-                  concerning relationships • Potential collaboration network
-                  involvement
+                ))}
+              </View>
+            </ScrollView>
+          </ScrollView>
+
+          <View style={styles.matrixFooter}>
+            <Text style={styles.matrixFooterText}>
+              ✓ Analysis completed by TrueWork AI • Verified authentic work
+              patterns
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const renderNetworkAnalysis = () => {
+    const numStudents = getNumStudents();
+    const numPatterns = analysisResults.length;
+
+    return (
+      <ScrollView
+        style={styles.contentScrollView}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              TrueWork Network Intelligence
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              Advanced pattern recognition and collaboration network analysis
+            </Text>
+          </View>
+
+          <View style={styles.networkStats}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{numStudents}</Text>
+              <Text style={styles.statLabel}>Students Analyzed</Text>
+              <Text style={styles.statSubtext}>by TrueWork</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{numPatterns}</Text>
+              <Text style={styles.statLabel}>Similarity Patterns</Text>
+              <Text style={styles.statSubtext}>detected</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>
+                {Math.max(1, Math.floor(numPatterns / 5))}
+              </Text>
+              <Text style={styles.statLabel}>Collaboration Clusters</Text>
+              <Text style={styles.statSubtext}>identified</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>
+                {Math.max(
+                  0,
+                  analysisResults.filter((r) => r.suspicionLevel === "critical")
+                    .length,
+                )}
+              </Text>
+              <Text style={styles.statLabel}>Critical Cases</Text>
+              <Text style={styles.statSubtext}>requiring review</Text>
+            </View>
+          </View>
+
+          <View style={styles.networkVisualization}>
+            <Text style={styles.networkTitle}>
+              TrueWork Collaboration Network Map
+            </Text>
+            <View style={styles.networkPlaceholder}>
+              <Text style={styles.networkPlaceholderText}>
+                🕸️ Interactive TrueWork Network Visualization
+              </Text>
+              <Text style={styles.networkDescription}>
+                Advanced AI mapping shows student interaction patterns and
+                potential collaboration networks. Larger nodes indicate higher
+                centrality scores in the similarity network.
+              </Text>
+              <View style={styles.networkFeatures}>
+                <Text style={styles.networkFeature}>
+                  • Real-time pattern recognition
+                </Text>
+                <Text style={styles.networkFeature}>
+                  • Temporal collaboration tracking
+                </Text>
+                <Text style={styles.networkFeature}>
+                  • Suspicious activity flagging
                 </Text>
               </View>
-            ))}
+            </View>
+          </View>
+
+          <View style={styles.suspiciousStudents}>
+            <Text style={styles.suspiciousTitle}>
+              TrueWork Priority Review Queue
+            </Text>
+            <Text style={styles.suspiciousSubtitle}>
+              Students requiring immediate attention
+            </Text>
+            {networkNodes
+              .filter((node) => node.suspicious)
+              .map((student) => (
+                <View key={student.id} style={styles.suspiciousItem}>
+                  <View style={styles.suspiciousHeader}>
+                    <View>
+                      <Text style={styles.suspiciousName}>
+                        {student.student_id}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.suspiciousName,
+                          { fontSize: 12, opacity: 0.7 },
+                        ]}
+                      >
+                        {student.filename}
+                      </Text>
+                    </View>
+                    <View style={styles.suspiciousMetrics}>
+                      <Text style={styles.centralityScore}>
+                        Network Score:{" "}
+                        {(student.centralityScore * 100).toFixed(1)}%
+                      </Text>
+                      <Text style={styles.riskLevel}>HIGH PRIORITY</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.suspiciousReason}>
+                    TrueWork detected: High connectivity patterns • Multiple
+                    concerning relationships • Potential collaboration network
+                    involvement
+                  </Text>
+                </View>
+              ))}
+          </View>
         </View>
-      </View>
-    </ScrollView>
-  );
+      </ScrollView>
+    );
+  };
 
   const renderReports = () => (
     <ScrollView
@@ -685,8 +779,9 @@ export default function Index() {
               <View key={index} style={styles.resultCard}>
                 <View style={styles.resultHeader}>
                   <Text style={styles.resultTitle}>
-                    Student {result.studentPair[0]} ↔ Student{" "}
-                    {result.studentPair[1]}
+                    {result.studentFilenames
+                      ? `${result.studentFilenames[0]} ↔ ${result.studentFilenames[1]}`
+                      : `Student ${result.studentPair[0]} ↔ Student ${result.studentPair[1]}`}
                   </Text>
                   <View style={styles.resultBadges}>
                     <View

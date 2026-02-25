@@ -38,6 +38,7 @@ interface PlagiarismResultRaw {
 interface AnalysisResult {
   studentPair: [number, number];
   studentNames: [string, string];
+  studentFilenames: [string, string];
   semanticSimilarity: number;
   structuralSimilarity: number;
   suspicionLevel: 'low' | 'medium' | 'high' | 'critical';
@@ -179,6 +180,10 @@ export const trueworkAPI = {
           studentNames: [
             sub1?.student_id || `Student ${result.submission1_id}`,
             sub2?.student_id || `Student ${result.submission2_id}`,
+          ],
+          studentFilenames: [
+            sub1?.filename || 'Unknown',
+            sub2?.filename || 'Unknown',
           ],
           semanticSimilarity,
           structuralSimilarity: semanticSimilarity * 0.95, // Placeholder

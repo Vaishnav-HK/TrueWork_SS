@@ -58,7 +58,7 @@ export const trueworkAPI = {
    * Upload multiple files to the backend
    */
   async uploadFiles(
-    files: Array<{ uri: string; name: string; type: string }>,
+    files: { uri: string; name: string; type: string }[],
     studentIds: string[]
   ): Promise<UploadResponse> {
     try {
@@ -151,6 +151,12 @@ export const trueworkAPI = {
         submissionMap[sub.id] = sub;
       });
 
+      // Extract numeric IDs from student_id strings (e.g., "Student_1" -> 1)
+      const extractStudentNumber = (studentId: string): number => {
+        const match = studentId.match(/\d+/);
+        return match ? parseInt(match[0]) : parseInt(studentId);
+      };
+
       // Transform results to frontend format
       const analysisResults: AnalysisResult[] = rawResults.map((result) => {
         const sub1 = submissionMap[result.submission1_id];
@@ -165,12 +171,6 @@ export const trueworkAPI = {
               : semanticSimilarity > 0.4
                 ? 'medium'
                 : 'low';
-
-        // Extract numeric IDs from student_id strings (e.g., "Student_1" -> 1)
-        const extractStudentNumber = (studentId: string): number => {
-          const match = studentId.match(/\d+/);
-          return match ? parseInt(match[0]) : parseInt(studentId);
-        };
 
         const studentNum1 = sub1 ? extractStudentNumber(sub1.student_id) : result.submission1_id;
         const studentNum2 = sub2 ? extractStudentNumber(sub2.student_id) : result.submission2_id;
@@ -196,13 +196,39 @@ export const trueworkAPI = {
       });
 
       // Create network nodes from submissions
-      const networkNodes: NetworkNode[] = submissions.map((sub) => ({
-        id: sub.id,
-        student_id: sub.student_id,
-        filename: sub.filename,
-        centralityScore: Math.random(),
-        suspicious: Math.random() > 0.7,
-      }));
+      const networkNodes: NetworkNode[] = submissions.map((sub) => {
+        // Check if this student has any critical or high similarity matches
+        const isSuspicious = analysisResults.some(
+          (result) =>
+            (result.studentPair[0] === extractStudentNumber(sub.student_id) ||
+              result.studentPair[1] === extractStudentNumber(sub.student_id)) &&
+            (result.suspicionLevel === 'critical' || result.suspicionLevel === 'high')
+        );
+
+        // Calculate centrality score based on number of suspicious matches
+        const suspiciousMatches = analysisResults.filter(
+          (result) =>
+            (result.studentPair[0] === extractStudentNumber(sub.student_id) ||
+              result.studentPair[1] === extractStudentNumber(sub.student_id)) &&
+            (result.suspicionLevel === 'critical' || result.suspicionLevel === 'high')
+        ).length;
+
+        const totalMatches = analysisResults.filter(
+          (result) =>
+            result.studentPair[0] === extractStudentNumber(sub.student_id) ||
+            result.studentPair[1] === extractStudentNumber(sub.student_id)
+        ).length;
+
+        const centralityScore = totalMatches > 0 ? suspiciousMatches / totalMatches : 0;
+
+        return {
+          id: sub.id,
+          student_id: sub.student_id,
+          filename: sub.filename,
+          centralityScore,
+          suspicious: isSuspicious,
+        };
+      });
 
       return {
         analysisResults,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Platform,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { trueworkAPI } from "@/services/api";
+import { NetworkVisualization } from "@/components/network-visualization";
 
 interface SimilarityResult {
   studentPair: [number, number];
@@ -651,27 +652,23 @@ export default function Index() {
             <Text style={styles.networkTitle}>
               TrueWork Collaboration Network Map
             </Text>
-            <View style={styles.networkPlaceholder}>
-              <Text style={styles.networkPlaceholderText}>
-                🕸️ Interactive TrueWork Network Visualization
-              </Text>
-              <Text style={styles.networkDescription}>
-                Advanced AI mapping shows student interaction patterns and
-                potential collaboration networks. Larger nodes indicate higher
-                centrality scores in the similarity network.
-              </Text>
-              <View style={styles.networkFeatures}>
-                <Text style={styles.networkFeature}>
-                  • Real-time pattern recognition
+            {analysisResults.length > 0 ? (
+              <NetworkVisualization
+                nodes={networkNodes}
+                edges={analysisResults}
+              />
+            ) : (
+              <View style={styles.networkPlaceholder}>
+                <Text style={styles.networkPlaceholderText}>
+                  🕸️ Interactive TrueWork Network Visualization
                 </Text>
-                <Text style={styles.networkFeature}>
-                  • Temporal collaboration tracking
-                </Text>
-                <Text style={styles.networkFeature}>
-                  • Suspicious activity flagging
+                <Text style={styles.networkDescription}>
+                  Upload and analyze files to generate the collaboration network
+                  visualization. The graph will show connections between similar
+                  submissions.
                 </Text>
               </View>
-            </View>
+            )}
           </View>
 
           <View style={styles.suspiciousStudents}>
@@ -681,39 +678,51 @@ export default function Index() {
             <Text style={styles.suspiciousSubtitle}>
               Students requiring immediate attention
             </Text>
-            {networkNodes
-              .filter((node) => node.suspicious)
-              .map((student) => (
-                <View key={student.id} style={styles.suspiciousItem}>
-                  <View style={styles.suspiciousHeader}>
-                    <View>
-                      <Text style={styles.suspiciousName}>
-                        {student.student_id}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.suspiciousName,
-                          { fontSize: 12, opacity: 0.7 },
-                        ]}
-                      >
-                        {student.filename}
-                      </Text>
+            {networkNodes.filter((node) => node.suspicious).length === 0 ? (
+              <View style={styles.noSuspiciousPlaceholder}>
+                <Text style={styles.noSuspiciousText}>
+                  ✓ No suspicious activity detected
+                </Text>
+                <Text style={styles.noSuspiciousSubtext}>
+                  All submissions passed authenticity verification with low
+                  similarity scores.
+                </Text>
+              </View>
+            ) : (
+              networkNodes
+                .filter((node) => node.suspicious)
+                .map((student) => (
+                  <View key={student.id} style={styles.suspiciousItem}>
+                    <View style={styles.suspiciousHeader}>
+                      <View>
+                        <Text style={styles.suspiciousName}>
+                          {student.student_id}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.suspiciousName,
+                            { fontSize: 12, opacity: 0.7 },
+                          ]}
+                        >
+                          {student.filename}
+                        </Text>
+                      </View>
+                      <View style={styles.suspiciousMetrics}>
+                        <Text style={styles.centralityScore}>
+                          Network Score:{" "}
+                          {(student.centralityScore * 100).toFixed(1)}%
+                        </Text>
+                        <Text style={styles.riskLevel}>HIGH PRIORITY</Text>
+                      </View>
                     </View>
-                    <View style={styles.suspiciousMetrics}>
-                      <Text style={styles.centralityScore}>
-                        Network Score:{" "}
-                        {(student.centralityScore * 100).toFixed(1)}%
-                      </Text>
-                      <Text style={styles.riskLevel}>HIGH PRIORITY</Text>
-                    </View>
+                    <Text style={styles.suspiciousReason}>
+                      TrueWork detected: High connectivity patterns • Multiple
+                      concerning relationships • Potential collaboration network
+                      involvement
+                    </Text>
                   </View>
-                  <Text style={styles.suspiciousReason}>
-                    TrueWork detected: High connectivity patterns • Multiple
-                    concerning relationships • Potential collaboration network
-                    involvement
-                  </Text>
-                </View>
-              ))}
+                ))
+            )}
           </View>
         </View>
       </ScrollView>
@@ -1668,6 +1677,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#495057",
     lineHeight: 18,
+  },
+  noSuspiciousPlaceholder: {
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#ffeaa7",
+  },
+  noSuspiciousText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#28a745",
+    marginBottom: 8,
+  },
+  noSuspiciousSubtext: {
+    fontSize: 14,
+    color: "#6c757d",
+    textAlign: "center",
   },
   reportFilters: {
     flexDirection: "row",

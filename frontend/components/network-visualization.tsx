@@ -20,6 +20,8 @@ interface NetworkVisualizationProps {
     semanticSimilarity: number;
     suspicionLevel: "low" | "medium" | "high" | "critical";
   }[];
+  showPercentages?: boolean;
+  showLowSimilarity?: boolean;
 }
 
 const getEdgeColor = (
@@ -85,6 +87,8 @@ const generateNodePositions = (
 export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
   nodes,
   edges,
+  showPercentages = false,
+  showLowSimilarity = false,
 }) => {
   const svgWidth = 900;
   const svgHeight = 600;
@@ -94,6 +98,14 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
     [nodes.length],
   );
 
+  // Filter edges based on showLowSimilarity setting
+  const filteredEdges = useMemo(() => {
+    if (showLowSimilarity) {
+      return edges;
+    }
+    return edges.filter((e) => e.semanticSimilarity >= 0.15);
+  }, [edges, showLowSimilarity]);
+
   if (nodes.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -102,13 +114,19 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
     );
   }
 
-  // Calculate statistics
-  const criticalEdges = edges.filter(
+  // Calculate statistics based on filtered edges
+  const criticalEdges = filteredEdges.filter(
     (e) => e.suspicionLevel === "critical",
   ).length;
-  const highEdges = edges.filter((e) => e.suspicionLevel === "high").length;
-  const mediumEdges = edges.filter((e) => e.suspicionLevel === "medium").length;
-  const lowEdges = edges.filter((e) => e.suspicionLevel === "low").length;
+  const highEdges = filteredEdges.filter(
+    (e) => e.suspicionLevel === "high",
+  ).length;
+  const mediumEdges = filteredEdges.filter(
+    (e) => e.suspicionLevel === "medium",
+  ).length;
+  const lowEdges = filteredEdges.filter(
+    (e) => e.suspicionLevel === "low",
+  ).length;
 
   return (
     <View>
@@ -122,7 +140,7 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
           </View>
           <View style={styles.statRow}>
             <Text style={styles.statLabel}>Total Comparisons:</Text>
-            <Text style={styles.statValue}>{edges.length}</Text>
+            <Text style={styles.statValue}>{filteredEdges.length}</Text>
           </View>
         </View>
 
@@ -200,7 +218,7 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
           />
 
           {/* Draw edges (connections) first, so they appear behind nodes */}
-          {edges.map((edge, idx) => {
+          {filteredEdges.map((edge, idx) => {
             const source = nodes.findIndex((n) => {
               const match = n.student_id.match(/\d+/);
               const nodeNum = match ? parseInt(match[0]) : 0;
@@ -244,27 +262,31 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
                   opacity={0.75}
                   strokeLinecap="round"
                 />
-                {/* Edge label */}
-                <Rect
-                  x={midX + offsetX - 18}
-                  y={midY + offsetY - 10}
-                  width={36}
-                  height={20}
-                  fill="white"
-                  stroke={edgeColor}
-                  strokeWidth={1}
-                  rx={3}
-                />
-                <SvgText
-                  x={midX + offsetX}
-                  y={midY + offsetY + 4}
-                  fontSize="11"
-                  fontWeight="bold"
-                  fill={edgeColor}
-                  textAnchor="middle"
-                >
-                  <TSpan>{getEdgeLabel(edge.semanticSimilarity)}</TSpan>
-                </SvgText>
+                {/* Edge label - only show if showPercentages is true */}
+                {showPercentages && (
+                  <>
+                    <Rect
+                      x={midX + offsetX - 18}
+                      y={midY + offsetY - 10}
+                      width={36}
+                      height={20}
+                      fill="white"
+                      stroke={edgeColor}
+                      strokeWidth={1}
+                      rx={3}
+                    />
+                    <SvgText
+                      x={midX + offsetX}
+                      y={midY + offsetY + 4}
+                      fontSize="11"
+                      fontWeight="bold"
+                      fill={edgeColor}
+                      textAnchor="middle"
+                    >
+                      <TSpan>{getEdgeLabel(edge.semanticSimilarity)}</TSpan>
+                    </SvgText>
+                  </>
+                )}
               </G>
             );
           })}
@@ -272,7 +294,7 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
           {/* Draw nodes */}
           {nodes.map((node, idx) => {
             const pos = positions[idx];
-            const hasSuspiciousEdge = edges.some(
+            const hasSuspiciousEdge = filteredEdges.some(
               (e) =>
                 (e.studentPair[0] === idx + 1 ||
                   e.studentPair[1] === idx + 1) &&
@@ -328,10 +350,10 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
                 <SvgText
                   x={pos.x}
                   y={pos.y + nodeRadius + 24}
-                  fontSize="10"
-                  fill="#475569"
+                  fontSize="13"
+                  fontWeight="700"
+                  fill="#1e293b"
                   textAnchor="middle"
-                  fontWeight="500"
                 >
                   <TSpan>
                     {node.filename.length > 18
@@ -346,10 +368,10 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
       </ScrollView>
 
       {/* Connection Details */}
-      {edges.length > 0 && (
+      {filteredEdges.length > 0 && (
         <View style={styles.detailsContainer}>
           <Text style={styles.detailsTitle}>Plagiarism Connections</Text>
-          {edges
+          {filteredEdges
             .sort((a, b) => b.semanticSimilarity - a.semanticSimilarity)
             .slice(0, 10)
             .map((edge, idx) => {

@@ -49,6 +49,8 @@ export default function Index() {
     col: number;
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showPercentages, setShowPercentages] = useState(false);
+  const [showLowSimilarity, setShowLowSimilarity] = useState(false);
 
   const pickDocuments = async () => {
     try {
@@ -649,13 +651,53 @@ export default function Index() {
           </View>
 
           <View style={styles.networkVisualization}>
-            <Text style={styles.networkTitle}>
-              TrueWork Collaboration Network Map
-            </Text>
+            <View style={styles.networkHeader}>
+              <Text style={styles.networkTitle}>
+                TrueWork Collaboration Network Map
+              </Text>
+              {analysisResults.length > 0 && (
+                <View style={styles.togglesContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.percentageToggle,
+                      showPercentages && styles.percentageToggleActive,
+                    ]}
+                    onPress={() => setShowPercentages(!showPercentages)}
+                  >
+                    <Text
+                      style={[
+                        styles.percentageToggleText,
+                        showPercentages && styles.percentageToggleTextActive,
+                      ]}
+                    >
+                      {showPercentages ? "Hide %" : "Show %"}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.percentageToggle,
+                      showLowSimilarity && styles.percentageToggleActive,
+                    ]}
+                    onPress={() => setShowLowSimilarity(!showLowSimilarity)}
+                  >
+                    <Text
+                      style={[
+                        styles.percentageToggleText,
+                        showLowSimilarity && styles.percentageToggleTextActive,
+                      ]}
+                    >
+                      {showLowSimilarity ? "Hide <15%" : "Show <15%"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
             {analysisResults.length > 0 ? (
               <NetworkVisualization
                 nodes={networkNodes}
                 edges={analysisResults}
+                showPercentages={showPercentages}
+                showLowSimilarity={showLowSimilarity}
               />
             ) : (
               <View style={styles.networkPlaceholder}>
@@ -1583,7 +1625,35 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#4f46e5",
+  },
+  networkHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
+  },
+  togglesContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  percentageToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#4f46e5",
+    backgroundColor: "#ffffff",
+  },
+  percentageToggleActive: {
+    backgroundColor: "#4f46e5",
+  },
+  percentageToggleText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4f46e5",
+  },
+  percentageToggleTextActive: {
+    color: "#ffffff",
   },
   networkPlaceholder: {
     height: 320,
